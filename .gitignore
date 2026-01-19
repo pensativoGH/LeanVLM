@@ -1,0 +1,77 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual environments
+venv/
+env/
+.venv/
+
+# Large files - checkpoints, data, results, runs
+checkpoints/
+/data/
+/results/
+runs/
+outputs/
+*.pt
+*.pth
+*.bin
+*.safetensors
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Misc
+*.log
+.env
+
+# Private keys and sensitive files
+private-key*
+*.pem
+*.key
+
+# Zip files
+*.zip
+
+# Claude local settings
+.claude/
+
+# SPEC files
+*SPEC*.md
+
+# PDF reports
+*.pdf

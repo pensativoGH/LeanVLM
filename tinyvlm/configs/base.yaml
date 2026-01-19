@@ -1,0 +1,65 @@
+model:
+  vision_encoder: "google/siglip-base-patch16-384"
+  language_model: "HuggingFaceTB/SmolLM2-360M-Instruct"  # Upgraded from 135M
+  projector_hidden_dim: 960  # Match SmolLM2-360M hidden size
+  image_size: 384
+  num_image_tokens: 144  # 12x12 after pixel shuffle (was 64 with avg pool)
+  freeze_vision_encoder: true
+
+# Two-stage training approach:
+# Stage 1: Feature alignment with image-caption pairs (LLaVA-Pretrain)
+# Stage 2: Instruction tuning with QA data (the_cauldron)
+
+# Per-component learning rates (inspired by nanoVLM):
+# - Projector: Higher LR (newly initialized)
+# - Vision encoder: Low LR (pre-trained, only in Stage 2)
+# - Language model: Low LR (pre-trained)
+learning_rates:
+  projector: 5.0e-3      # Restored (no NaN observed at this LR)
+  vision_encoder: 5.0e-5  # Low for pre-trained vision (Stage 2 only)
+  language_model: 5.0e-5  # Low for pre-trained LM
+
+stage1:
+  # Feature alignment - simple image-caption pairs, no chat format
+  # Only train projector to align vision features with LM space
+  dataset: "cauldron"
+  subsets: ["textcaps", "localized_narratives"]  # Caption-focused subsets
+  batch_size: 16                      # Reduced for 360M model to fit in 40GB
+  gradient_accumulation_steps: 6      # effective: 96
+  warmup_steps: 500
+  max_steps: 6000                     # ~576K samples = 1 epoch
+  freeze_vision: true                 # Vision encoder frozen in Stage 1
+  freeze_lm: true                     # Freeze entire LM, only train projector
+  use_chat_template: false            # Simple format for alignment
+  save_steps: 1000
+  log_steps: 100
+
+stage2:
+  # Instruction tuning - use chat template for proper instruction following
+  # Updated to match nanoVLM effective batch size (32) and prevent overfitting
+  dataset: "cauldron"                 # Instruction QA data
+  max_samples: 800000                 # Cap at 800K (proportional sampling for diversity)
+  batch_size: 4                       # Reduced from 16 for smaller effective batch
+  gradient_accumulation_steps: 8      # effective: 32 (was 96)
+  warmup_steps: 1200                  # 3% of 40k steps (like nanoVLM)
+  max_steps: 40000                    # Extended training with smaller batch
+  freeze_vision: false                # Train vision encoder (like nanoVLM)
+  freeze_lm: false                    # Full LM training
+  use_chat_template: true             # Chat format for instruction tuning
+  save_steps: 2000                    # Frequent saves - can stop early
+  log_steps: 100
+
+data:
+  llava_pretrain_dir: "data/llava_pretrain"
+  cauldron_dir: "data/the_cauldron"
+  max_length: 2048                    # Increased from 512 (like nanoVLM's 4096, but safer for memory)
+  image_size: 384
+  num_workers: 4
+
+hardware:
+  precision: "bf16"
+  tf32: true
+
+paths:
+  checkpoint_dir: "checkpoints_v2"  # Separate from v1 (SmolLM2-135M)
+  log_dir: "runs_v2"                # Separate training logs

@@ -1,0 +1,103 @@
+# STEM VLM Configuration
+# Based on SmolLM2-360M-Instruct + SigLIP
+
+# Model Configuration
+model:
+  type: stem_vlm
+
+  # Vision Encoder (SigLIP)
+  vision:
+    model_name: "google/siglip-base-patch16-384"  # patch16 → 24x24=576 tokens
+    pixel_shuffle_scale: 2  # 576 → 144 tokens
+    freeze: true
+    image_size: 384
+    # Output: 144 tokens × 4608-dim (1152 * 4 from pixel shuffle)
+
+  # Projector
+  projector:
+    type: mlp  # Options: linear, mlp, multi_layer_mlp, perceiver
+    num_layers: 2
+    dropout: 0.0
+
+  # Language Model (SmolLM2-360M)
+  language_model:
+    model_name: "HuggingFaceTB/SmolLM2-360M-Instruct"
+    vocab_size: 49152
+    hidden_size: 960
+    intermediate_size: 2560
+    num_hidden_layers: 32
+    num_attention_heads: 15
+    num_key_value_heads: 5
+    max_position_embeddings: 8192
+    rope_theta: 10000.0
+    rms_norm_eps: 1.0e-5
+    hidden_act: silu
+    tie_word_embeddings: true
+
+  # STEM Configuration
+  stem:
+    init_std: 0.02
+    num_image_tokens: 144
+
+# Training Configuration
+training:
+  # Output
+  output_dir: outputs
+  experiment_name: stem_vlm_smollm2
+
+  # Training hyperparameters
+  # NOTE: num_epochs is ignored when two-stage training is enabled.
+  # Total epochs = stage1_epochs + stage2_epochs
+  num_epochs: 3  # Only used if stage1_epochs=0 and stage2_epochs=0
+  batch_size: 1  # Reduced for 40GB GPU with 4B STEM params
+  gradient_accumulation_steps: 16  # Effective batch size = 16
+  max_grad_norm: 1.0
+
+  # Learning rates (STEM-specific)
+  lr_stem_embeddings: 1.0e-4  # Reduced from 1e-3 to avoid NaN
+  lr_projector: 1.0e-4
+  lr_default: 5.0e-5
+  weight_decay: 0.01
+
+  # LR schedule
+  warmup_ratio: 0.03
+  min_lr_ratio: 0.1
+
+  # Mixed precision (bf16 is better for A100, no scaler needed)
+  fp16: false
+  bf16: true
+
+  # Memory optimization
+  use_8bit_optimizer: true  # 8-bit Adam saves ~27GB memory
+
+  # Two-stage training (step-based)
+  stage1_steps: 10000  # Projector + layer 0, no STEM
+  stage2_steps: 40000  # Full model with STEM
+
+  # Checkpointing
+  save_steps: 2000
+  save_total_limit: 0  # Keep all checkpoints
+
+  # Logging
+  log_steps: 10
+  eval_steps: 500
+
+  # Hardware
+  num_workers: 4
+  pin_memory: true
+
+  # Reproducibility
+  seed: 42
+
+# Data Configuration
+data:
+  cauldron_dir: data/the_cauldron
+  max_length: 512
+  max_samples_per_subset: null  # Load all samples
+
+# Evaluation Configuration
+eval:
+  batch_size: 8
+  max_new_tokens: 128
+  temperature: 0.7
+  top_p: 0.9
